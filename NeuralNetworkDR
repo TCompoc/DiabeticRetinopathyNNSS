@@ -1,0 +1,80 @@
+from google.colab import drive
+drive.mount('/content/drive')
+
+%tensorflow_version 2.x
+import tensorflow as tf
+from tensorflow.keras import datasets, layers, models
+
+#Import helper libraries
+import numpy as np
+import matplotlib.pyplot as plt
+
+data_root='/content/drive/MyDrive/MA395/ERAU_retinopathy_data'
+
+IMAGE_SHAPE = (600, 600)
+TRAINING_DATA_DIR = str(data_root)
+print(TRAINING_DATA_DIR);
+datagen_kwargs = dict(rescale=1./255, validation_split=.2)
+
+valid_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**datagen_kwargs)
+valid_generator = valid_datagen.flow_from_directory(TRAINING_DATA_DIR,subset="validation",shuffle=True,target_size=IMAGE_SHAPE,batch_size=44)
+train_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**datagen_kwargs)
+train_generator = train_datagen.flow_from_directory(TRAINING_DATA_DIR,subset="training",shuffle=True,target_size=IMAGE_SHAPE,batch_size=176)
+
+image_batch_train, label_batch_train = next(iter(train_generator))
+print("Image batch shape: ", image_batch_train.shape)
+print("Label batch shape: ", label_batch_train.shape)
+dataset_labels = sorted(train_generator.class_indices.items(), key=lambda pair:pair[1])
+dataset_labels = np.array([key.title() for key, value in dataset_labels])
+print(dataset_labels)
+
+#Rename
+class_names = dataset_labels
+train_images = image_batch_train
+train_labels = label_batch_train
+
+#Load and split dataset into training and testing images
+from sklearn.model_selection import train_test_split
+train_images, test_images, train_labels, test_labels = train_test_split(train_images, train_labels)
+
+#Print out an example image
+plt.figure()
+plt.imshow(train_images[2])
+plt.colorbar()
+plt.grid(False)
+plt.show
+
+#Test 1
+#This is the "convolutional base"
+model = models.Sequential()
+model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=(600, 600, 3))) #32x32x3 pixels passing 32 3x3 filters over the data
+model.add(layers.MaxPooling2D((2, 2))) #downsample
+model.add(layers.Conv2D(64, (3, 3), activation='relu')) #Passing 64 3x3 filters over the image
+model.add(layers.MaxPooling2D((2, 2))) #downsample
+model.add(layers.Conv2D(64, (3, 3), activation='relu')) #Passing 64 3x3 filters over the image
+model.add(layers.Conv2D(64, (3, 3), activation='relu')) #Passing 64 3x3 filters over the image
+
+#Now we add the dense layers
+model.add(layers.Flatten())
+model.add(layers.Dense(256, activation='relu'))
+model.add(layers.Dense(2))
+
+model.summary()
+
+#Train the model! (Note: takes a long time)
+model.compile(optimizer='SGD',
+              loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
+              metrics=['accuracy'])
+
+history = model.fit(train_images, train_labels, epochs=5, 
+                    validation_data=(test_images, test_labels), batch_size=1)
+                    
+#Test
+test_loss, test_acc = model.evaluate(test_images, test_labels, verbose=2)
+print(test_acc)
+
+plt.figure()
+plt.imshow(train_images[2])
+plt.colorbar()
+plt.grid(False)
+plt.show
